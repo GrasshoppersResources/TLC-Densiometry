@@ -1,4 +1,4 @@
-﻿#include "Processor.h"
+#include "Processor.h"
 
 #include <iostream>
 #include <filesystem>
@@ -9,8 +9,8 @@
 
 #include "util.h"
 
-//#define DEBUG_LOW //low level debugging
-//#define DEBUG_HIGH //high level debugging
+#define DEBUG_LOW //low level debugging
+#define DEBUG_HIGH //high level debugging
 //#define DEBUG_SPEC //special debugging
 
 //input function
@@ -78,7 +78,7 @@ void Processor::read()
         ASSERT(false);
     }
 #ifdef DEBUG_HIGH
-    show(image, "readImage Raw");
+    show(image, "original image");
 #endif
 }
 
