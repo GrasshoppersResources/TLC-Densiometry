@@ -1,4 +1,4 @@
-﻿#include "Processor.h"
+#include "Processor.h"
 
 #include <iostream>
 #include <filesystem>
@@ -80,6 +80,8 @@ void Processor::read()
 #ifdef DEBUG_HIGH
     show(image, "original image");
 #endif
+    //char c;
+    //std::cin >> c;
 }
 
 void Processor::crop()
@@ -363,23 +365,44 @@ void Processor::correct()
         {
             cv::Vec3f& pixel = image.at<cv::Vec3f>(y, x);
 
-            // Skip if all components are already >= 0
-            if (pixel[0] >= 0 && pixel[1] >= 0 && pixel[2] >= 0)
+            if (pixel[0] >= 0 && pixel[1] >= 0 && pixel[2] >= 0) //no color value is negative
                 continue;
 
-            // Clip negative components to zero
-            cv::Vec3f clipped = pixel;
-            for (int c = 0; c < 3; ++c)
-                if (clipped[c] < 0.0f)
-                    clipped[c] = 0.0f;
+            if (pixel[0] <= 0 && pixel[1] <= 0 && pixel[2] <= 0) // all color values are negative
+            {
+                // Step 1: Invert sign to get into visible domain
+                cv::Vec3f positive_pixel = -pixel;
 
-            float original_norm = std::sqrt(pixel[0] * pixel[0] + pixel[1] * pixel[1] + pixel[2] * pixel[2]);
-            float clipped_norm = std::sqrt(clipped[0] * clipped[0] + clipped[1] * clipped[1] + clipped[2] * clipped[2]);
+                // Step 2: Convert to HLS
+                cv::Mat rgb(1, 1, CV_32FC3, positive_pixel);
+                cv::Mat hls;
+                cv::cvtColor(rgb, hls, cv::COLOR_RGB2HLS); // OpenCV expects RGB, not BGR
 
-            if (clipped_norm > 1e-6f)
-                pixel = clipped * (original_norm / clipped_norm); // Rescale to preserve energy
-            else
-                pixel = cv::Vec3f(0.0f, 0.0f, 0.0f); // Totally dark if nothing left
+                // Step 3: Invert Hue while keeping Lightness and Saturation
+                cv::Vec3f& hls_pixel = hls.at<cv::Vec3f>(0, 0);
+                hls_pixel[0] = std::fmod(hls_pixel[0] + 180.0f, 360.0f); // hue + 180 degrees
+
+                // Step 4: Convert back to RGB
+                cv::cvtColor(hls, rgb, cv::COLOR_HLS2RGB);
+                pixel = rgb.at<cv::Vec3f>(0, 0);
+            }
+
+             // some color values are negative
+            {
+                // Clip negative components to zero
+                cv::Vec3f clipped = pixel;
+                for (int c = 0; c < 3; ++c)
+                    if (clipped[c] < 0.0f)
+                        clipped[c] = 0.0f;
+
+                float original_norm = std::sqrt(pixel[0] * pixel[0] + pixel[1] * pixel[1] + pixel[2] * pixel[2]);
+                float clipped_norm = std::sqrt(clipped[0] * clipped[0] + clipped[1] * clipped[1] + clipped[2] * clipped[2]);
+
+                if (clipped_norm > 1e-6f)
+                    pixel = clipped * (original_norm / clipped_norm); // Rescale to preserve energy
+                else
+                    pixel = cv::Vec3f(0.0f, 0.0f, 0.0f); // Totally dark if nothing left
+            }
 
         }
     }
