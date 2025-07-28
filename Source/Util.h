@@ -19,12 +19,13 @@
     } while (false)
 
 //shows an image in a window, resized if required
-void show(const cv::Mat& image, const std::string& name = "image") {
+void show(const cv::Mat& image, const std::string& name = "image") 
+{
     ASSERT(!image.empty());
 
     // Downscale if imageRaw is large
     int maxDimX = 2400;
-    int maxDimY = 1200;
+    int maxDimY = 1000;
 
     // Resize only if scaling is needed
     cv::Mat resizedImage;
@@ -45,32 +46,72 @@ void show(const cv::Mat& image, const std::string& name = "image") {
 
     //show image
     cv::imshow(name, resizedImage);
-    cv::moveWindow(name, 100, 100);
+    cv::moveWindow(name, 10, 10);
     cv::waitKey(0);
     // Only destroy if still open
     if (cv::getWindowProperty(name, cv::WND_PROP_VISIBLE) >= 1)
         cv::destroyWindow(name);
 }
 
-//plots the curves of the density
-void graph(cv::Mat density, const std::string& name = "graph")
+void graph(const cv::Mat& density, const std::string& name = "Graph", int width = 800, int thickness = 2)
 {
-    ASSERT(!density.empty());
-    ASSERT(density.type() == CV_32FC3);
+    CV_Assert(!density.empty());
+    CV_Assert(density.type() == CV_32FC3);
+    CV_Assert(density.cols == 1);  // Only 1D vertical input supported
 
-    const int width = 800;
-    cv::Mat dbg = cv::Mat::zeros(cv::Size(width, density.rows), CV_8UC3);
+    const int height = density.rows;
+    const int centerX = width / 2;
 
-    for (size_t y = 0; y < density.rows; y++)
+    // Create black image
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(0, 0, 0));
+
+    // Draw vertical center line
+    cv::line(image, cv::Point(centerX, 0), cv::Point(centerX, height - 1), cv::Scalar(32, 32, 32), 1);
+
+    // Predefined BGR channel colors
+    const cv::Scalar colors[3] = {
+        {255, 0, 0},   // Blue
+        {0, 255, 0},   // Green
+        {0, 0, 255}    // Red
+    };
+
+    for (int y = 0; y < height - 1; ++y)
     {
-        dbg.at<cv::Vec3b>(y, (width / 2)) = cv::Vec3b(32, 32, 32);
+        const cv::Vec3f& cur = density.at<cv::Vec3f>(y, 0);
+        const cv::Vec3f& next = density.at<cv::Vec3f>(y + 1, 0);
 
-        for (size_t c = 0; c < 3; c++)
+        for (int c = 0; c < 3; ++c)
         {
-            int x = (density.at<cv::Vec3f>(y, 0)[c] * width);
-            x = std::clamp(x, -width / 2, (width / 2) - 1);
-            dbg.at<cv::Vec3b>(y, (width / 2) + x) = cv::Vec3b(255 * (c == 0), 255 * (c == 1), 255 * (c == 2));
+            int x1 = std::clamp(static_cast<int>(cur[c] * width), -centerX, centerX - 1);
+            int x2 = std::clamp(static_cast<int>(next[c] * width), -centerX, centerX - 1);
+
+            cv::line(
+                image,
+                cv::Point(centerX + x1, y),
+                cv::Point(centerX + x2, y + 1),
+                colors[c],
+                thickness,
+                cv::LINE_AA
+            );
         }
     }
-    show(dbg, name);
+    show(image, name);
+}
+
+
+
+
+void hist(cv::Mat signal, const std::string& name = "graph")
+{
+    cv::normalize(signal, signal, 0.0, 1.0, cv::NORM_MINMAX);
+    cv::Mat dbgimg = cv::Mat::zeros(400, signal.cols, CV_32F);
+    for (size_t x = 0; x < dbgimg.cols - 1; x++)
+    {
+        float y = (dbgimg.rows - 1) - (signal.at<float>(0, x) * (dbgimg.rows - 1));
+        dbgimg.at<float>(y, x) = 1.0f;
+
+        cv::line(dbgimg, cv::Point(x, y), cv::Point(x, (dbgimg.rows - 1)), cv::Scalar(1.0), 1);
+    }
+
+    show(dbgimg);
 }
